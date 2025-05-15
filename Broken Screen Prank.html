@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Crash Simulation with CRT Noise and Shatter Effect</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: black;
+      cursor: default;
+    }
+    canvas {
+      display: block;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    #modal {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.85);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
+      cursor: default;
+    }
+    #modalContent {
+      color: white;
+      font-family: monospace;
+      font-size: 32px;
+      text-align: center;
+      line-height: 1.4;
+      white-space: pre-line;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="mainCanvas"></canvas>
+  <div id="modal">
+    <div id="modalContent">
+Your device ran into a problem :(  
+Press F to restart.
+    </div>
+  </div>
+  <script>
+  (function(){
+    const canvas = document.getElementById('mainCanvas');
+    const ctx = canvas.getContext('2d');
+    const modal = document.getElementById('modal');
+    let noiseFrameId;
+    let state = 'noise'; // 'noise' -> 'modal' -> 'crack'
+    let noiseImageData;
+
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      noiseImageData = ctx.createImageData(canvas.width, canvas.height);
+      if (state === 'crack') {
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // ---- CRT NOISE EFFECT ----
+    function drawNoise() {
+      const data = noiseImageData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const v = Math.random() * 255 | 0;
+        data[i] = data[i+1] = data[i+2] = v;
+        data[i+3] = 255;
+      }
+      ctx.putImageData(noiseImageData, 0, 0);
+    }
+    function noiseLoop() {
+      if (state !== 'noise') return;
+      drawNoise();
+      noiseFrameId = requestAnimationFrame(noiseLoop);
+    }
+    noiseLoop();
+
+    // After ~3.5 seconds, transition to modal
+    setTimeout(() => {
+      if (state !== 'noise') return;
+      state = 'modal';
+      cancelAnimationFrame(noiseFrameId);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      modal.style.display = 'flex';
+    }, 3500);
+
+    // ---- HANDLE 'F' KEY TO ENTER CRACK MODE ----
+    window.addEventListener('keydown', (e) => {
+      if (state === 'modal' && (e.key === 'f' || e.key === 'F')) {
+        state = 'crack';
+        modal.style.display = 'none';
+        // request fullscreen
+        const el = document.documentElement;
+        if (el.requestFullscreen) el.requestFullscreen();
+        else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+        else if (el.msRequestFullscreen) el.msRequestFullscreen();
+        // hide cursor
+        document.body.style.cursor = 'none';
+        canvas.style.cursor = 'none';
+        // clear background
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // enable crack on click
+        canvas.addEventListener('click', triggerCrack);
+      }
+    });
+
+    // ---- SHATTER EFFECT ----
+    let cracked = false;
+
+    function triggerCrack(e) {
+      if (cracked) return;
+      cracked = true;
+      const x = e.clientX, y = e.clientY;
+      const w = canvas.width, h = canvas.height;
+      const midpoints = [];
+
+      // Impact glow
+      (function(){
+        const glowR = 60 + Math.random() * 30;
+        const grad = ctx.createRadialGradient(x, y, 0, x, y, glowR);
+        grad.addColorStop(0, 'rgba(255,255,255,0.8)');
+        grad.addColorStop(0.5, 'rgba(255,255,255,0.2)');
+        grad.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(x, y, glowR, 0, Math.PI * 2);
+        ctx.fill();
+      })();
+
+      // Curved ring fractures
+      function drawRings() {
+        const ringCount = 3 + Math.floor(Math.random() * 3);
+        for (let r = 0; r < ringCount; r++) {
+          const radius = 30 + r * 30 + Math.random() * 20;
+          const segments = 20 + Math.floor(Math.random() * 20);
+          const step = Math.PI * 2 / segments;
+          for (let i = 0; i < segments; i++) {
+            const a1 = i * step, a2 = (i + 1) * step;
+            const p1x = x + Math.cos(a1) * radius;
+            const p1y = y + Math.sin(a1) * radius;
+            const p2x = x + Math.cos(a2) * radius;
+            const p2y = y + Math.sin(a2) * radius;
+            const midA = a1 + step / 2;
+            const midR = radius + (Math.random() - 0.5) * 10;
+            const mx = x + Math.cos(midA) * midR;
+            const my = y + Math.sin(midA) * midR;
+            ctx.beginPath();
+            ctx.moveTo(p1x, p1y);
+            ctx.quadraticCurveTo(mx, my, p2x, p2y);
+            ctx.lineWidth = 1 + Math.random();
+            ctx.strokeStyle = `rgba(255,255,255,${0.2 + Math.random() * 0.3})`;
+            ctx.stroke();
+          }
+        }
+      }
+
+      // Short radial shards
+      function drawShards() {
+        const shardCount = 30 + Math.floor(Math.random() * 20);
+        for (let i = 0; i < shardCount; i++) {
+          let angle = Math.random() * Math.PI * 2;
+          const length = 20 + Math.random() * 130;
+          let cx = x, cy = y;
+          const segs = 1 + Math.floor(Math.random() * 2);
+          for (let s = 0; s < segs; s++) {
+            angle += (Math.random() - 0.5) * 0.4;
+            const segLen = length / segs;
+            const nx = cx + Math.cos(angle) * segLen;
+            const ny = cy + Math.sin(angle) * segLen;
+            const mx = (cx + nx) / 2 + (Math.random() - 0.5) * segLen * 0.2;
+            const my = (cy + ny) / 2 + (Math.random() - 0.5) * segLen * 0.2;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.quadraticCurveTo(mx, my, nx, ny);
+            ctx.lineWidth = 1 + Math.random() * 2;
+            ctx.strokeStyle = `rgba(255,255,255,${0.5 + Math.random() * 0.4})`;
+            ctx.stroke();
+            cx = nx; cy = ny;
+          }
+        }
+      }
+
+      // Tiny micro-lines
+      function drawMicroLines() {
+        for (let i = 0; i < 60; i++) {
+          const r1 = Math.random() * 50;
+          const a1 = Math.random() * Math.PI * 2;
+          const cx = x + Math.cos(a1) * r1;
+          const cy = y + Math.sin(a1) * r1;
+          const a2 = a1 + (Math.random() - 0.5) * 0.6;
+          const len = 5 + Math.random() * 15;
+          const nx = cx + Math.cos(a2) * len;
+          const ny = cy + Math.sin(a2) * len;
+          const mx = (cx + nx) / 2 + (Math.random() - 0.5) * len * 0.3;
+          const my = (cy + ny) / 2 + (Math.random() - 0.5) * len * 0.3;
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.quadraticCurveTo(mx, my, nx, ny);
+          ctx.lineWidth = 0.5 + Math.random() * 0.5;
+          ctx.strokeStyle = `rgba(255,255,255,${0.7 + Math.random() * 0.3})`;
+          ctx.stroke();
+        }
+      }
+
+      // Primary & branching cracks
+      const maxDepth = 2;
+      function drawCrack(sx, sy, angle, length, depth) {
+        if (depth > maxDepth || length < 20) return;
+        const segs = 8 + Math.floor(Math.random() * 6);
+        let cx = sx, cy = sy, theta = angle;
+        for (let i = 0; i < segs; i++) {
+          const tNorm = i / segs;
+          theta += (Math.random() - 0.5) * 0.4;
+          const segLen = length / segs;
+          const nx = cx + Math.cos(theta) * segLen;
+          const ny = cy + Math.sin(theta) * segLen;
+          const mx = (cx + nx) / 2 + (Math.random() - 0.5) * segLen * 0.3;
+          const my = (cy + ny) / 2 + (Math.random() - 0.5) * segLen * 0.3;
+          let thickness, opacity;
+          if (depth === 0) {
+            thickness = 1.5 + Math.random() * 1.5;
+            opacity = 0.4 + Math.random() * 0.3;
+          } else {
+            thickness = ((1 + Math.random() * 2) * (1 - depth * 0.3) * (1 - tNorm)) + 0.5;
+            opacity = ((0.3 + Math.random() * 0.5) * (1 - depth * 0.3) * (1 - tNorm));
+          }
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.quadraticCurveTo(mx, my, nx, ny);
+          ctx.lineWidth = thickness;
+          ctx.strokeStyle = `rgba(255,255,255,${opacity})`;
+          ctx.stroke();
+          if (depth < maxDepth) midpoints.push({ x: mx, y: my });
+          if (Math.random() < 0.2 && depth < maxDepth) {
+            const branchAng = theta + (Math.random() < 0.5 ? 1 : -1) * (Math.PI / 2 + (Math.random() - 0.5) * 0.5);
+            drawCrack(mx, my, branchAng, length * (0.4 + Math.random() * 0.2), depth + 1);
+          }
+          cx = nx; cy = ny;
+        }
+      }
+
+      // Draw fracture elements
+      drawRings();
+      drawShards();
+      drawMicroLines();
+
+      // Primary edge-to-edge cracks
+      const primaryCount = 120;
+      for (let i = 0; i < primaryCount; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const cosA = Math.cos(angle), sinA = Math.sin(angle);
+        let t1 = cosA > 0 ? (w - x) / cosA : cosA < 0 ? -x / cosA : Infinity;
+        let t2 = sinA > 0 ? (h - y) / sinA : sinA < 0 ? -y / sinA : Infinity;
+        const length = Math.min(t1, t2);
+        drawCrack(x, y, angle, length, 0);
+      }
+
+      // Secondary intersections
+      const intersectionCount = 40;
+      for (let i = 0; i < intersectionCount; i++) {
+        if (!midpoints.length) break;
+        const mp = midpoints.splice(Math.random() * midpoints.length | 0, 1)[0];
+        const ang = Math.random() * Math.PI * 2;
+        const len = 20 + Math.random() * 80;
+        drawCrack(mp.x, mp.y, ang, len, 1);
+      }
+    }
+  })();
+  </script>
+</body>
+</html>
