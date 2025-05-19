@@ -67,9 +67,8 @@ A cinematic and interactive web-based crash simulation featuring:
 
 ---
 
-## 📷 Preview (Optional)
+## 📷 Preview 
 
-You can add a preview screenshots here:
 ![image](https://github.com/user-attachments/assets/10f6cd2f-41fe-4611-afa7-d075865933d0)
 ![image](https://github.com/user-attachments/assets/d83056ac-1bf1-4ccf-b1fa-76527003899a)
 ![image](https://github.com/user-attachments/assets/7e30e57f-fb2b-47d7-9002-1f8482faf46d)
